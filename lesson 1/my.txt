@@ -1,0 +1,5 @@
+Установка окружения:
+MySQL Community Server
+Workbench
+DbForge
+Обучающая база Employees
