@@ -3,7 +3,7 @@
  * Задача 1: Пусть в таблице users поля created_at и updated_at оказались незаполненными.
  * Заполните их текущими датой и временем.*/
 
-set shop;
+USE shop;
 
 UPDATE users 
 SET created_at = NOW(), updated_at = CURRENT_TIMESTAMP;
@@ -25,12 +25,30 @@ updated_at = concat(substring(updated_at, 7, 4), "-", substring(updated_at, 4, 2
 ;
 select created_at, updated_at from users; 
 
+-- Второй вариант с использованием функции STR_TO_DATE (created_at, '%d.%m.%Y %k:%i') 
+ SELECT STR_TO_DATE (created_at, '%d.%m.%Y %k:%i') FROM users;
+
+UPDATE 
+	users
+SET
+	created_at = STR_TO_DATE (created_at, '%d.%m.%Y %k:%i'),
+	updated_at = STR_TO_DATE (created_at, '%d.%m.%Y %k:%i');
+
 -- затем изменим тип полей created_at и updated_at
 ALTER TABLE users
 MODIFY created_at DATETIME DEFAULT NOW(),
 MODIFY updated_at DATETIME DEFAULT NOW()
 ;
+-- другой запрос на обновление формата 
+ALTER TABLE users
+	CHANGE 
+		created_at created_at DATETIME DEFAULT NOW();
+	
+ALTER TABLE users
+	CHANGE 
+		updated_at updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;	
 
+DESCRIBE users;
 /*Задача 3: 
  * В таблице складских запасов storehouses_products в поле value могут встречаться
  * самые разные цифры: 0, если товар закончился и выше нуля, если на складе имеются запасы.
@@ -80,6 +98,11 @@ FROM users
 WHERE month(birthday_at) = 5 OR month(birthday_at) = 8
 GROUP BY month;
 
+-- Способ gb
+SELECT name, DATE_FORMAT(birthday_at, '%M') FROM users;
+SELECT name FROM users WHERE DATE_FORMAT(birthday_at, '%M') = 'may';
+SELECT name FROM users WHERE DATE_FORMAT(birthday_at, '%M') IN ('may', 'august');
+
 /*Задание 5:(по желанию) Из таблицы catalogs извлекаются записи при помощи запроса.
  * SELECT * FROM catalogs WHERE id IN (5, 1, 2);
  * Отсортируйте записи в порядке, заданном в списке IN.*/
@@ -104,10 +127,26 @@ SELECT count(*), DAYNAME(concat(substring(NOW(),1,4), substring(birthday_at,5,15
 FROM users
 GROUP BY `dayname` ;
 
+-- Способ gb
+SELECT year(now()),month(birthday_at), day(birthday_at)
+FROM users; 
+
+SELECT 
+	date_format(DATE(CONCAT_WS('-', year(now()), month(birthday_at), day(birthday_at))), '%W')  as `day`,
+	count(*) as total 
+FROM 
+	users
+GROUP BY `day`
+ORDER BY total DESC;
+
+
 /* Задание 3: (по желанию) Подсчитайте произведение чисел в столбце таблицы*/
 
 -- Воспользуемся свойством логарифмов: логарифм произведения равен сумме логарифмов,
 -- ln(2*3*4*5) = ln(2) + ln(3) + ln(4) + ln(5)
 -- exp(ln(2*3*4*5)) = 2*3*4*5 = exp(ln(2) + ln(3) + ln(4) + ln(5)) */
 SELECT exp(SUM(log(value))) as product FROM tbl;
+
+-- формула gb
+SELECT EXP(SUM(LN(value))) FROM tbl;
 
