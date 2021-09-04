@@ -1,11 +1,17 @@
- /* Описать модель хранения данных для сети продуктовых магазинов имеющего программу лояльности с бонусной картой.
+ /* Задача описать модель хранения данных для сети продуктовых магазинов имеющего программу лояльности с бонусной картой.
   * Личный кабинет покупателя с историей чеков, бонусов, персональных предложений.
  
  Пользователи: id, e-mail, last name second name Анкета с данными: дата рождения, город, адресс, хобби, соц профили, дети,статус
  Количество бонусов, скидки, история покупок, обратная связь, персональные купоны, подписка на рассылку.
  
  Магазин: Каталог: Категории товаров, Товары: название цена скидка, Публикации: Новости и акции компании, скидки на категорию,скидки на товар
- */
+ 
+ Используемые Функции:
+ Сумма чека по его номеру,
+ 3% от суммы чека по id чека (для начисления бонусов после формирования чека)
+ Процедура: Вывод списка покупок пользователя в заданный период даты.
+ Триггер: Записать в логи начисление бонусов в таблицу bonus_history
+ **/
  
 DROP DATABASE IF EXISTS retailer_shop;
 CREATE  DATABASE retailer_shop;
@@ -138,7 +144,7 @@ INSERT INTO `children` VALUES
 (9,9,'Arturo','1986-04-18','male'),(10,10,'Gertrude','1991-09-12','male')
 ;
 
--- справочник интересов/хобби 
+-- справочник интересов/хобби в Анкете покупателя
 DROP TABLE IF EXISTS interests;
 CREATE TABLE interests (
 id SERIAL PRIMARY KEY,
@@ -216,7 +222,7 @@ INSERT INTO `bonus_account`(user_id, total) VALUES
 (1,721.00),(2,124.00),(3,554.00),(4,771.00),(5,533.00),
 (6,713.00),(7,820.00),(8,158.00),(9,274.00),(10,537.00);
 
-#чеки
+#Список сформированных чеков
 DROP TABLE IF EXISTS receipts;
 CREATE TABLE receipts (
 	id SERIAL PRIMARY KEY,
@@ -229,26 +235,25 @@ CREATE TABLE receipts (
 ) COMMENT = 'Чеки покупателей';
 
 INSERT INTO `receipts` VALUES 
-(1,4,1,'2004-07-24 19:07:33','2012-10-18 06:19:12'),(2,936287374,2,'2015-06-05 08:57:00','1978-04-17 03:40:58'),
+(1,4,1,'2020-07-24 19:07:33','2020-10-18 06:19:12'),(2,936287374,2,'2015-06-05 08:57:00','1978-04-17 03:40:58'),
 (3,0,3,'1997-04-07 05:59:11','1984-07-04 06:44:06'),(4,911446454,4,'2014-02-02 15:41:55','1982-11-13 12:36:48'),
 (5,668854,5,'1999-05-07 07:09:47','1995-02-23 08:06:57'),(6,3250142,6,'1980-07-20 21:41:18','1982-01-08 06:57:15'),
 (7,41137,7,'1999-03-31 20:08:12','2021-02-14 08:05:20'),(8,78,8,'2006-08-09 10:43:55','2008-01-02 03:44:50'),
 (9,183869,9,'2003-03-05 23:53:22','2010-01-13 22:52:02'),(10,5035932,10,'1994-12-07 13:36:51','1972-02-17 00:39:15'),
-(11,2488335,1,'2012-10-01 17:45:52','2003-09-06 22:23:24'),(12,3261,2,'1984-09-07 04:45:39','1984-11-06 19:51:18'),
-(13,140984,3,'1980-07-07 03:21:48','1978-07-04 04:11:49'),(14,108571,4,'1983-03-17 09:52:27','1996-09-21 00:07:26'),
+(11,2488335,1,'2021-07-01 17:45:52','2021-07-06 22:23:24'),(12,3261,2,'1984-09-07 04:45:39','1984-11-06 19:51:18'),
+(13,140984,1,'2013-07-07 03:21:48','2013-07-04 04:11:49'),(14,108571,4,'1983-03-17 09:52:27','1996-09-21 00:07:26'),
 (15,5763,5,'1983-02-04 04:06:47','1997-02-13 15:03:44'),(16,9947292,6,'2003-12-10 00:35:25','2000-08-20 19:50:07'),
 (17,951799992,7,'1999-12-28 11:10:31','2001-03-31 08:22:22'),(18,52,8,'1984-04-07 06:58:17','1982-06-16 02:37:41'),
 (19,5730546,9,'2013-12-16 05:13:07','1997-03-19 05:10:03'),(20,571,10,'2009-05-07 05:33:04','2010-03-27 00:20:18')
 ;
 
-# Сформированные чеки покупок
+# Расшифровка чеков: список товаров в чеках
 DROP TABLE IF EXISTS receipts_products;
 CREATE TABLE receipts_products (	
 	receipt_id BIGINT UNSIGNED NOT NULL,
 	product_id BIGINT UNSIGNED NOT NULL,
 	price_on_sale DECIMAL(10,2) NOT NULL COMMENT 'Стоимость товара на момент продажи' ,
 	total INT UNSIGNED DEFAULT 1 COMMENT 'Количество товара в чеке',
-	bonus DECIMAL(10,2) COMMENT 'Бонус за товар',
 	created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 	updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 	
@@ -258,18 +263,32 @@ CREATE TABLE receipts_products (
 ) COMMENT = 'Состав чека';
 
 INSERT INTO receipts_products
-(receipt_id, product_id, price_on_sale, total, bonus)
+(receipt_id, product_id, price_on_sale, total)
 VALUES
-(1, 1, '200.00', 2, '5.00'),
-(1, 2, '3000.00', 1, '30.00'),
-(1, 3, '500.00', 1, '10.00'),
-(1, 7, '500.00', 1, '10.00'),
-(2, 1, '500.00', 1, '10.00'),
-(2, 3, '500.00', 1, '10.00'),
-(3, 2, '500.00', 1, '10.00'),
-(3, 4, '500.00', 1, '10.00'),
-(3, 6, '500.00', 1, '10.00')
+(1, 1, '200.00', 2),
+(1, 2, '3000.00', 1),
+(1, 3, '500.00', 1),
+(1, 7, '500.00', 1),
+(2, 1, '500.00', 1),
+(2, 3, '500.00', 1),
+(3, 2, '500.00', 1),
+(3, 4, '500.00', 1),
+(3, 6, '500.00', 1),
+(4, 1, '200.00', 2),
+(11, 2, '3000.00',1),
+(13, 1, '200.00', 2)
 ;
+
+#Бонусы: таблица начислений по чеку
+/*Храним в отдельной таблице вместе с чеками. По бизнес логике бонусы вычисляются от чека при определенных условиях(процент от суммы чека, покупка определенных позиций в чеке и.т.д.*/
+DROP TABLE IF EXISTS receipts_bonuses;
+CREATE TABLE receipts_bonuses (
+receipt_id BIGINT UNSIGNED NOT NULL,
+bonus DECIMAL(10,2),
+
+FOREIGN KEY(receipt_id) REFERENCES receipts(id)
+);
+
 
 # История начисления списания бонусов. Храним движения по счету
 
@@ -319,6 +338,101 @@ INSERT INTO `bonus_history` VALUES
 ;
 
 
+/*Создадим триггер записывающий в логи начисление бонусов AFTER INSERT таблицы receipts_bonuses* пользователю*/ 
+DROP TRIGGER IF EXISTS retailer_shop.after_insert_receipts_bonuses_for_user;
+USE retailer_shop;
+
+DELIMITER $$
+$$
+CREATE DEFINER=`root`@`localhost` TRIGGER `after_insert_receipts_bonuses_for_user` AFTER INSERT ON `receipts_bonuses` FOR EACH ROW BEGIN 
+	
+	DECLARE _user_id BIGINT UNSIGNED;
+	SELECT user_id INTO _user_id 
+	FROM  receipts 
+	WHERE receipts.id = new.receipt_id;
+	
+	
+	INSERT INTO bonus_history (user_id,quantity, operation,`date`, description_operation_id) VALUES
+	(_user_id, new.bonus ,'accrued', NOW(), 1);
+END $$
+DELIMITER ;
+
+
+
+/*Функция выводит сумму чека по его номеру.
+ * Учитываем стоимость товара на момент продажи указанную в чеке (receipts_products), а не текущую стоимость товара в products*/
+DROP FUNCTION IF EXISTS retailer_shop.receipt_amount;
+
+DELIMITER $$
+$$
+CREATE FUNCTION retailer_shop.receipt_amount(num INT)
+RETURNS DECIMAL(10,2) READS SQL DATA
+BEGIN
+	DECLARE total DECIMAL(10,2);
+	SELECT SUM(rp.price_on_sale * rp.total) INTO total 
+	FROM receipts r
+	JOIN receipts_products rp ON r.id = rp.receipt_id
+	WHERE r.`number` = num;
+	RETURN total;
+END$$
+DELIMITER ;
+
+SELECT receipt_amount(4);
+
+
+/*Функция считает 3% от суммы чека по его id. Будем использовать ее для начисления бонусов за покупку.
+ * Учитываем стоимость товара на момент продажи указанную в чеке (receipts_products), а не текущую стоимость товара в products*/
+DROP FUNCTION IF EXISTS retailer_shop.receipt_amount_id;
+
+DELIMITER $$
+$$
+CREATE FUNCTION retailer_shop.receipt_amount_id(_id INT)
+RETURNS DECIMAL(10,2) READS SQL DATA
+BEGIN
+	DECLARE total DECIMAL(10,2);
+	SELECT SUM(rp.price_on_sale * rp.total) INTO total 
+	FROM receipts_products rp
+	WHERE rp.receipt_id = _id;
+	RETURN total*0.03;
+END$$
+DELIMITER ;
+
+SELECT receipt_amount_id(2); -- 3% от суммы чека id = 2
+
+/*Процедура shopping_list(id, date1, date2) выводит список покупок пользователя по его id на выбранный период даты */
+DROP PROCEDURE IF EXISTS shopping_list;
+
+DELIMITER $$
+$$
+CREATE PROCEDURE shopping_list(_user_id BIGINT UNSIGNED, start_date DATE, end_date DATE)
+BEGIN
+	SELECT r.`number` , p.name, rp.total, rp.price_on_sale as price,r.created_at 
+	FROM receipts r 
+	JOIN receipts_products rp ON r.id = rp.receipt_id
+	JOIN products p ON p.id = rp.product_id 
+	WHERE r.user_id = _user_id and DATE(r.created_at) BETWEEN start_date AND end_date;
+END $$
+DELIMITER ;
+
+# проверка процедуры
+call shopping_list(1,'2017-01-01', DATE(NOW()));
+
+
+/*Используем функцию высчитывающую 3% от чека как пример. Бонусы могут начислятся системой бизнес-логики 
+ * другими способами*/
+/*При записи срабатывает триггер который запишет начисление бонусов в логи таблицы bonus_history*/
+INSERT INTO receipts_bonuses VALUES
+(1,receipt_amount_id(1)),
+(2,receipt_amount_id(2)),
+(3,receipt_amount_id(3)),
+(11,receipt_amount_id(11)),
+(13,receipt_amount_id(13))
+;
+INSERT INTO receipts_bonuses VALUES
+(4, receipt_amount_id(4));
+
+
+/*Триггер добавляет запись о начислении бонусов в таблицу история бонусов при создании нового чека. (итоговое количество бонусов в чеке для каждого пользователя)*/
 
 #история бонусного счета: Начисление/ Списание. Начислено может быть за покупку, или по другому событию пользователю на счет. Списание за покупку.  
 #форма обратной связи - статус обработки обращений. Ответ на обращения.
